@@ -67,12 +67,10 @@ The Co-op Support Application replaces manual co-op program coordination with a 
 ---
 
 ## Getting Started
+### Project Structure
 
 ### Prerequisites
-
-- Node.js v18+
-- A running database instance (e.g., PostgreSQL)
-- An email service configured (e.g., SMTP or SendGrid)
+(to be determined)
 
 ### Installation
 
