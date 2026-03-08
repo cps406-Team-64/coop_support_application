@@ -3,7 +3,7 @@ import { create } from 'zustand';
 
 export type UserRole = 'student' | 'employer' | 'coordinator';
 
-export type ApplicationStatus = 'Applied' | 'Provisionally Accepted' | 'Provisionally Rejected' | 'Finally Accepted' | 'Finally Rejected' | 'Placement Rejected' | 'Dismissed' | 'Flagged for Review';
+export type ApplicationStatus = 'No Application' | 'Applied' | 'Provisionally Accepted' | 'Provisionally Rejected' | 'Finally Accepted' | 'Finally Rejected' | 'Placement Rejected' | 'Dismissed' | 'Flagged for Review';
 
 export interface User {
   id: string;

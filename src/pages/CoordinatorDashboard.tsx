@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { Users, FileText, AlertTriangle, Filter, Clock, UserPlus, Bell, Send } from 'lucide-react';
 
 const statusColors: Record<string, string> = {
+  'No Application': 'status-none',
   'Applied': 'status-applied',
   'Provisionally Accepted': 'status-accepted',
   'Provisionally Rejected': 'status-rejected',
@@ -23,7 +24,7 @@ const statusColors: Record<string, string> = {
 };
 
 const allStatuses: ApplicationStatus[] = [
-  'Applied', 'Provisionally Accepted', 'Provisionally Rejected',
+  'No Application', 'Applied', 'Provisionally Accepted', 'Provisionally Rejected',
   'Finally Accepted', 'Finally Rejected', 'Placement Rejected', 'Dismissed',
 ];
 
