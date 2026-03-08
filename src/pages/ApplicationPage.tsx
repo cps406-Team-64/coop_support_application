@@ -21,9 +21,9 @@ const ApplicationPage = () => {
     const e: Record<string, string> = {};
     if (!fullName.trim()) e.fullName = 'Full name is required';
     if (!studentId.trim()) e.studentId = 'Student ID is required';
-    else if (!/^STU-\d{5}$/.test(studentId)) e.studentId = 'Format: STU-XXXXX (e.g. STU-10001)';
+    else if (!/^d{9}$/.test(studentId)) e.studentId = 'Format: 50XXXXXXX (e.g. 501234567)';
     if (!studentEmail.trim()) e.studentEmail = 'Email is required';
-    else if (!/^[^\s@]+@university\.edu$/.test(studentEmail)) e.studentEmail = 'Must be a @university.edu email';
+    else if (!/^[^\s@]+@university\.ca$/.test(studentEmail)) e.studentEmail = 'Must be a @university.ca email';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -80,12 +80,12 @@ const ApplicationPage = () => {
             </div>
             <div className="space-y-2">
               <Label htmlFor="studentId">Student ID</Label>
-              <Input id="studentId" placeholder="STU-10001" value={studentId} onChange={(e) => setStudentId(e.target.value)} />
+              <Input id="studentId" placeholder="501234567" value={studentId} onChange={(e) => setStudentId(e.target.value)} />
               {errors.studentId && <p className="text-xs text-destructive">{errors.studentId}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="studentEmail">Student Email</Label>
-              <Input id="studentEmail" type="email" placeholder="you@university.edu" value={studentEmail} onChange={(e) => setStudentEmail(e.target.value)} />
+              <Input id="studentEmail" type="email" placeholder="you@university.ca" value={studentEmail} onChange={(e) => setStudentEmail(e.target.value)} />
               {errors.studentEmail && <p className="text-xs text-destructive">{errors.studentEmail}</p>}
             </div>
             <Button type="submit" className="w-full">Submit Application</Button>
