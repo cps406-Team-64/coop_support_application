@@ -21,9 +21,9 @@ const ApplicationPage = () => {
     const e: Record<string, string> = {};
     if (!fullName.trim()) e.fullName = 'Full name is required';
     if (!studentId.trim()) e.studentId = 'Student ID is required';
-    else if (!/^STU-\d{5}$/.test(studentId)) e.studentId = 'Format: STU-XXXXX (e.g. STU-10001)';
+    else if (!/^d{9}$/.test(studentId)) e.studentId = 'Format: 50XXXXXX (e.g. STU-10001)';
     if (!studentEmail.trim()) e.studentEmail = 'Email is required';
-    else if (!/^[^\s@]+@university\.edu$/.test(studentEmail)) e.studentEmail = 'Must be a @university.edu email';
+    else if (!/^[^\s@]+@university\.ca$/.test(studentEmail)) e.studentEmail = 'Must be a @university.ca email';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
