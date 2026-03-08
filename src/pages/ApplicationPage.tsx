@@ -19,11 +19,21 @@ const ApplicationPage = () => {
 
   const validate = () => {
     const e: Record<string, string> = {};
+  
+    // Valid full name: letters & space only, non-empty, non-null
     if (!fullName.trim()) e.fullName = 'Full name is required';
-    if (!studentId.trim()) e.studentId = 'Student ID is required';
-    else if (!/^STU-\d{5}$/.test(studentId)) e.studentId = 'Format: STU-XXXXX (e.g. STU-10001)';
+    else if (!/^[A-Za-z\s]+$/.test(fullName)) e.fullName = 'Name must contain only alphabetical letters.'
+    else if (fullName.trim().length === 0) e.fullName = 'Full name is required';
+
+    // Valid student ID: numeric & exactly 8 digits
+    if (!studentId?.trim()) e.studentId = 'Student ID is required';
+    else if (!/^\d{8}$/.test(studentId)) e.studentId = 'Student ID must be exactly 8 digits long';
+        
+    // Valid email: email format w/ username@torontomu.ca 
     if (!studentEmail.trim()) e.studentEmail = 'Email is required';
-    else if (!/^[^\s@]+@university\.edu$/.test(studentEmail)) e.studentEmail = 'Must be a @university.edu email';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(studentEmail)) e.studentEmail = 'Invalid email format';
+    else if (!/^[a-zA-Z0-9._%+-]+@torontomu\.ca$/.test(studentEmail)) e.studentEmail = 'Must be a valid @domain.ca email';
+
     setErrors(e);
     return Object.keys(e).length === 0;
   };
