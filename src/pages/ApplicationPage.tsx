@@ -21,18 +21,22 @@ const ApplicationPage = () => {
     const e: Record<string, string> = {};
   
     // Valid full name: letters & space only, non-empty, non-null
-    if (!fullName.trim()) e.fullName = 'Full name is required';
-    else if (!/^[A-Za-z\s]+$/.test(fullName)) e.fullName = 'Name must contain only alphabetical letters.'
-    else if (fullName.trim().length === 0) e.fullName = 'Full name is required';
+    if (!fullName.trim()) e.fullName = 'Full name is required.';
+    else if (!/^[A-Za-z\s]+$/.test(fullName)) e.fullName = 'Name must contain only alphabetical letters.';
+    else if (!/^[A-Za-z]+(?:\s+[A-Za-z]+)+$/.test(fullName.trim())) e.fullName = 'Enter both first and last name.';
+    else e.fullName = 'Something went wrong.'
 
     // Valid student ID: numeric & exactly 8 digits
-    if (!studentId?.trim()) e.studentId = 'Student ID is required';
-    else if (!/^\d{8}$/.test(studentId)) e.studentId = 'Student ID must be exactly 8 digits long';
-        
+    if (!studentId?.trim()) e.studentId = 'Student ID is required.';
+    else if (!/^\d+$/.test(studentId)) e.studentId = 'Student ID must contain only numerical values.';
+    else if (studentId.length !== 8) e.studentId = 'Student ID must be exactly 8 digits long.';
+    else e.studentId = 'Something went wrong.'
+
     // Valid email: email format w/ username@torontomu.ca 
-    if (!studentEmail.trim()) e.studentEmail = 'Email is required';
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(studentEmail)) e.studentEmail = 'Invalid email format';
-    else if (!/^[a-zA-Z0-9._%+-]+@torontomu\.ca$/.test(studentEmail)) e.studentEmail = 'Must be a valid @domain.ca email';
+    if (!studentEmail.trim()) e.studentEmail = 'Email is required.';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(studentEmail)) e.studentEmail = 'Invalid email format.';
+    else if (!/^[a-zA-Z0-9._%+-]+@torontomu\.ca$/.test(studentEmail)) e.studentEmail = 'Must be a valid @domain.ca email.';
+    else e.studentEmail = 'Something went wrong.'
 
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -90,12 +94,12 @@ const ApplicationPage = () => {
             </div>
             <div className="space-y-2">
               <Label htmlFor="studentId">Student ID</Label>
-              <Input id="studentId" placeholder="STU-10001" value={studentId} onChange={(e) => setStudentId(e.target.value)} />
+              <Input id="studentId" placeholder="501234567" value={studentId} onChange={(e) => setStudentId(e.target.value)} />
               {errors.studentId && <p className="text-xs text-destructive">{errors.studentId}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="studentEmail">Student Email</Label>
-              <Input id="studentEmail" type="email" placeholder="you@university.edu" value={studentEmail} onChange={(e) => setStudentEmail(e.target.value)} />
+              <Input id="studentEmail" type="email" placeholder="you@university.ca" value={studentEmail} onChange={(e) => setStudentEmail(e.target.value)} />
               {errors.studentEmail && <p className="text-xs text-destructive">{errors.studentEmail}</p>}
             </div>
             <Button type="submit" className="w-full">Submit Application</Button>
