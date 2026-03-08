@@ -24,19 +24,16 @@ const ApplicationPage = () => {
     if (!fullName.trim()) e.fullName = 'Full name is required.';
     else if (!/^[A-Za-z\s]+$/.test(fullName)) e.fullName = 'Name must contain only alphabetical letters.';
     else if (!/^[A-Za-z]+(?:\s+[A-Za-z]+)+$/.test(fullName.trim())) e.fullName = 'Enter both first and last name.';
-    else e.fullName = 'Something went wrong.'
 
     // Valid student ID: numeric & exactly 8 digits
     if (!studentId?.trim()) e.studentId = 'Student ID is required.';
     else if (!/^\d+$/.test(studentId)) e.studentId = 'Student ID must contain only numerical values.';
     else if (studentId.length !== 8) e.studentId = 'Student ID must be exactly 8 digits long.';
-    else e.studentId = 'Something went wrong.'
 
     // Valid email: email format w/ username@torontomu.ca 
     if (!studentEmail.trim()) e.studentEmail = 'Email is required.';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(studentEmail)) e.studentEmail = 'Invalid email format.';
     else if (!/^[a-zA-Z0-9._%+-]+@torontomu\.ca$/.test(studentEmail)) e.studentEmail = 'Must be a valid @domain.ca email.';
-    else e.studentEmail = 'Something went wrong.'
 
     setErrors(e);
     return Object.keys(e).length === 0;
