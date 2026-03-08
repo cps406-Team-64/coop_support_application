@@ -80,12 +80,12 @@ const ApplicationPage = () => {
             </div>
             <div className="space-y-2">
               <Label htmlFor="studentId">Student ID</Label>
-              <Input id="studentId" placeholder="STU-10001" value={studentId} onChange={(e) => setStudentId(e.target.value)} />
+              <Input id="studentId" placeholder="501234567" value={studentId} onChange={(e) => setStudentId(e.target.value)} />
               {errors.studentId && <p className="text-xs text-destructive">{errors.studentId}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="studentEmail">Student Email</Label>
-              <Input id="studentEmail" type="email" placeholder="you@university.edu" value={studentEmail} onChange={(e) => setStudentEmail(e.target.value)} />
+              <Input id="studentEmail" type="email" placeholder="you@university.ca" value={studentEmail} onChange={(e) => setStudentEmail(e.target.value)} />
               {errors.studentEmail && <p className="text-xs text-destructive">{errors.studentEmail}</p>}
             </div>
             <Button type="submit" className="w-full">Submit Application</Button>
