@@ -4,9 +4,10 @@
     "noImplicitAny": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
+    "baseUrl": ".",
     "paths": {
       "@/*": [
-        "./src/*"
+        "./frontend/src/*"
       ]
     },
     "skipLibCheck": true,
