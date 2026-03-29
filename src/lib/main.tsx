@@ -1,5 +1,5 @@
 import { createRoot } from "react-dom/client";
-import App from "./App.tsx";
+import App from "../App.tsx";
 import "./index.css";
 
 // Import the functions you need from the SDKs you need
