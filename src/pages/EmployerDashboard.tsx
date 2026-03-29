@@ -1,19 +1,23 @@
 import { useState, useEffect } from 'react';
-import { useAppStore, type Evaluation, type Placement } from '@/lib/store';
+import { useAppStore, type Evaluation, type Report } from '@/lib/store';
 import { db } from '@/services/firebase';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, addDoc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { FileText, Users, Star, Download } from 'lucide-react';
+import { FileText, Users, Download } from 'lucide-react';
+import jsPDF from 'jspdf';
 
 const EmployerDashboard = () => {
-  const { currentUser, evaluations = [], addEvaluation, placements = [], setPlacements } = useAppStore();
+  const { currentUser, evaluations = [], addEvaluation } = useAppStore();
+  
+  // Custom local state for synced students (reports)
+  const [assignedStudents, setAssignedStudents] = useState<Report[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [evalStudent, setEvalStudent] = useState('');
   const [evalTerm, setEvalTerm] = useState('');
@@ -23,25 +27,56 @@ const EmployerDashboard = () => {
   const [attitude, setAttitude] = useState('3');
   const [comments, setComments] = useState('');
 
-  // Real-time listener for placements related to this company
+  // IMPORTANT: Listen to reports where employerName matches this company
   useEffect(() => {
     if (!currentUser?.company) return;
-    const q = query(collection(db, 'placements'), where('employerName', '==', currentUser.company));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Placement[];
-      setPlacements(data);
-    });
-    return () => unsubscribe();
-  }, [currentUser?.company, setPlacements]);
 
-  const employerStudents = placements.filter(p => p.employerName === (currentUser?.company));
+    const q = query(
+      collection(db, 'reports'), 
+      where('employerName', '==', currentUser.company)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data() 
+      })) as Report[];
+      setAssignedStudents(data);
+    });
+
+    return () => unsubscribe();
+  }, [currentUser?.company]);
+
   const myEvals = evaluations.filter(e => e.employerId === currentUser?.id);
   const ratingOptions = ['1', '2', '3', '4', '5'];
 
-  const handleSubmitEval = () => {
-    if (!evalStudent || !evalTerm) return toast.error('Please fill required fields');
+  const handleDownloadPdf = () => {
+    if (!evalStudent || !evalTerm) return toast.error("Select student and term");
+    const doc = new jsPDF();
+    doc.setFontSize(20);
+    doc.text("Work Term Evaluation Form", 20, 20);
     
-    addEvaluation({
+    doc.setFontSize(12);
+    doc.text(`Employer: ${currentUser?.company}`, 20, 40);
+    doc.text(`Student: ${evalStudent}`, 20, 50);
+    doc.text(`Term: ${evalTerm}`, 20, 60);
+    
+    doc.text(`Behaviour: ${behaviour}/5`, 20, 80);
+    doc.text(`Skills: ${skills}/5`, 20, 90);
+    doc.text(`Knowledge: ${knowledge}/5`, 20, 100);
+    doc.text(`Attitude: ${attitude}/5`, 20, 110);
+    
+    doc.text("Comments:", 20, 130);
+    const splitComments = doc.splitTextToSize(comments || "No comments.", 170);
+    doc.text(splitComments, 20, 140);
+    
+    doc.save(`${evalStudent}_Evaluation.pdf`);
+  };
+
+  const handleSubmitEval = async () => {
+    if (!evalStudent || !evalTerm) return toast.error('Fill required fields');
+    
+    const newEval = {
       employerId: currentUser?.id || '',
       studentName: evalStudent,
       workTerm: evalTerm,
@@ -50,49 +85,26 @@ const EmployerDashboard = () => {
       knowledge: parseInt(knowledge),
       attitude: parseInt(attitude),
       comments,
-      submittedAt: new Date().toISOString(),
-      pdfUrl: undefined
-    });
-    toast.success('Evaluation submitted!');
-    setShowForm(false);
+      submittedAt: new Date().toISOString()
+    };
+
+    try {
+      await addDoc(collection(db, 'evaluations'), newEval);
+      addEvaluation(newEval); // Sync local state
+      toast.success('Evaluation submitted!');
+      setShowForm(false);
+      // Reset scores
+      setComments('');
+      setBehaviour('3');
+      setSkills('3');
+      setKnowledge('3');
+      setAttitude('3');
+    } catch (e) {
+      toast.error("Failed to save evaluation");
+    }
   };
 
   if (!currentUser) return <div className="p-20 text-center">Loading...</div>;
-  const handlePdfUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && file.type !== 'application/pdf') {
-      toast.error('Only PDF files are supported');
-      e.target.value = '';
-      return;
-    }
-    setPdfFile(file || null);
-  };
-
-  const handleDownloadPdf = async () => {
-    if (!evalStudent || !evalTerm) {
-      toast.error("Please fill out student and term first");
-      return;
-    }
-  
-    const { default: jsPDF } = await import("jspdf");
-    const doc = new jsPDF();
-  
-    doc.setFontSize(16);
-    doc.text("Student Evaluation Form", 20, 20);
-  
-    doc.setFontSize(12);
-    doc.text(`Student: ${evalStudent}`, 20, 40);
-    doc.text(`Work Term: ${evalTerm}`, 20, 50);
-  
-    doc.text(`Behaviour: `, 20, 70);
-    doc.text(`Skills: `, 20, 80);
-    doc.text(`Knowledge: `, 20, 90);
-    doc.text(`Attitude:  `, 20, 100);
-  
-    doc.text("Comments: ", 20, 120);
-      
-    doc.save(`${evalStudent}_evaluation.pdf`);
-  };
 
   return (
     <div className="p-8 animate-fade-in">
@@ -101,18 +113,14 @@ const EmployerDashboard = () => {
         <p className="text-muted-foreground">{currentUser.company} — Portal</p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3 mb-8">
-        <Card><CardContent className="pt-6">
-          <div className="flex items-center gap-4">
-            <Users className="h-8 w-8 text-blue-500" />
-            <div><p className="text-2xl font-bold">{employerStudents.length}</p><p className="text-xs text-muted-foreground">Students</p></div>
-          </div>
+      <div className="grid gap-4 sm:grid-cols-2 mb-8">
+        <Card><CardContent className="pt-6 flex items-center gap-4">
+          <Users className="h-8 w-8 text-blue-500" />
+          <div><p className="text-2xl font-bold">{assignedStudents.length}</p><p className="text-xs text-muted-foreground">Assigned Students</p></div>
         </CardContent></Card>
-        <Card><CardContent className="pt-6">
-          <div className="flex items-center gap-4">
-            <FileText className="h-8 w-8 text-green-500" />
-            <div><p className="text-2xl font-bold">{myEvals.length}</p><p className="text-xs text-muted-foreground">Evaluations</p></div>
-          </div>
+        <Card><CardContent className="pt-6 flex items-center gap-4">
+          <FileText className="h-8 w-8 text-green-500" />
+          <div><p className="text-2xl font-bold">{myEvals.length}</p><p className="text-xs text-muted-foreground">Completed Evals</p></div>
         </CardContent></Card>
       </div>
 
@@ -123,12 +131,17 @@ const EmployerDashboard = () => {
         </CardHeader>
         <CardContent>
           {myEvals.length === 0 ? <p className="text-sm text-muted-foreground">No evaluations yet.</p> : (
-            myEvals.map(ev => (
-              <div key={ev.id} className="p-3 border-b flex justify-between">
-                <span>{ev.studentName}</span>
-                <span className="text-xs text-muted-foreground">{ev.workTerm}</span>
-              </div>
-            ))
+            <div className="space-y-2">
+              {myEvals.map(ev => (
+                <div key={ev.id} className="p-3 border rounded flex justify-between items-center bg-card">
+                  <div>
+                    <p className="font-medium">{ev.studentName}</p>
+                    <p className="text-xs text-muted-foreground">{ev.workTerm}</p>
+                  </div>
+                  <p className="text-xs font-bold">Avg: {((ev.behaviour + ev.skills + ev.knowledge + ev.attitude) / 4).toFixed(1)}</p>
+                </div>
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>
@@ -137,56 +150,67 @@ const EmployerDashboard = () => {
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Student Evaluation Form</DialogTitle></DialogHeader>
           <div className="space-y-4 pt-2">
-            <div className="space-y-2">
-              <Label>Student</Label>
-              <Select value={evalStudent} onValueChange={setEvalStudent}>
-                <SelectTrigger><SelectValue placeholder="Select student" /></SelectTrigger>
-                <SelectContent>
-                  {employerStudents.map(s => <SelectItem key={s.id} value={s.studentName}>{s.studentName}</SelectItem>)}
-                  <SelectItem value="Alice Johnson">Alice Johnson</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Work Term</Label>
-              <Select value={evalTerm} onValueChange={setEvalTerm}>
-                <SelectTrigger><SelectValue placeholder="Select term" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Winter 2026">Winter 2026</SelectItem>
-                  <SelectItem value="Summer 2026">Summer 2026</SelectItem>
-                  <SelectItem value="Fall 2026">Fall 2026</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {[
-              { label: 'Behaviour', value: behaviour, setter: setBehaviour },
-              { label: 'Skills', value: skills, setter: setSkills },
-              { label: 'Knowledge', value: knowledge, setter: setKnowledge },
-              { label: 'Attitude', value: attitude, setter: setAttitude },
-            ].map(r => (
-              <div key={r.label} className="space-y-2">
-                <Label>{r.label} (1-5)</Label>
-                <Select value={r.value} onValueChange={r.setter}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+            
+            {/* Student & Term Selection */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Student</Label>
+                <Select value={evalStudent} onValueChange={setEvalStudent}>
+                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                   <SelectContent>
-                    {ratingOptions.map(v => <SelectItem key={v} value={v}>{v} — {['Poor','Below Avg','Average','Good','Excellent'][parseInt(v)-1]}</SelectItem>)}
+                    {assignedStudents.map(s => (
+                      <SelectItem key={s.id} value={s.studentName}>{s.studentName}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
-            ))}
+              <div className="space-y-2">
+                <Label>Work Term</Label>
+                <Select value={evalTerm} onValueChange={setEvalTerm}>
+                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Winter 2026">Winter 2026</SelectItem>
+                    <SelectItem value="Summer 2026">Summer 2026</SelectItem>
+                    <SelectItem value="Fall 2026">Fall 2026</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* THE MISSING RATING GRID */}
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                { label: 'Behaviour', value: behaviour, setter: setBehaviour },
+                { label: 'Skills', value: skills, setter: setSkills },
+                { label: 'Knowledge', value: knowledge, setter: setKnowledge },
+                { label: 'Attitude', value: attitude, setter: setAttitude },
+              ].map(r => (
+                <div key={r.label} className="space-y-2">
+                  <Label>{r.label}</Label>
+                  <Select value={r.value} onValueChange={r.setter}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {ratingOptions.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ))}
+            </div>
+
             <div className="space-y-2">
               <Label>Comments</Label>
-              <Textarea value={comments} onChange={(e) => setComments(e.target.value)} placeholder="Additional comments..." />
+              <Textarea 
+                value={comments} 
+                onChange={(e) => setComments(e.target.value)} 
+                placeholder="How did the student perform?" 
+                className="min-h-[100px]"
+              />
             </div>
-            <div className="space-y-2">
-              <Label>Upload PDF (optional)</Label>
-              <Input type="file" accept=".pdf" onChange={handlePdfUpload} />
-              <p className="text-xs text-muted-foreground">Only PDF files accepted</p>
-            </div>
-            <div className="flex gap-2">
-              <Button className="flex-1" onClick={handleSubmitEval}>Submit Online</Button>
+
+            <div className="flex gap-2 pt-4">
+              <Button className="flex-1" onClick={handleSubmitEval}>Submit Evaluation</Button>
               <Button variant="outline" onClick={handleDownloadPdf}>
-                <Download className="mr-1 h-4 w-4" /> Download PDF
+                <Download className="mr-2 h-4 w-4" /> Export PDF
               </Button>
             </div>
           </div>
