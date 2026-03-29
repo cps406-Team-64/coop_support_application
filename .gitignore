@@ -67,3 +67,24 @@ node_modules/
 
 # dataconnect generated files
 .dataconnect
+node_modules
+dist
+dist-ssr
+*.local
+.env
+.env.local
+.env.*.local
+coverage
+*.tmp
+*.temp
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

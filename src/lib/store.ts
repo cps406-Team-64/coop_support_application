@@ -28,7 +28,45 @@ export interface Notification {
   createdAt: string;
 }
 
-export interface Report {
+export interface StatusHistoryEntry {
+  id: string;
+  applicationId: string;
+  studentId: string;
+  status: ApplicationStatus;
+  timestamp: string;
+  coordinatorId: string;
+  reason?: string;
+}
+
+export interface Placement {
+  id: string;
+  studentId: string;
+  studentName: string;
+  employerName: string;
+  position: string;
+  startDate: string;
+  endDate: string;
+  status: 'Active' | 'Completed' | 'Rejected' | 'Dismissed';
+  rejectionReason?: string;
+  rejectionDate?: string;
+}
+
+export interface EvaluationForm {
+  pdfUrl: any;
+  id: string;
+  employerId: string;
+  studentName: string;
+  workTerm: string;
+  behaviour: number;
+  skills: number;
+  knowledge: number;
+  attitude: number;
+  comments: string;
+  submittedAt: string;
+  pdfFile?: string;
+}
+
+export interface WorkTermReport {
   id: string;
   studentId: string;
   employerName: string;
