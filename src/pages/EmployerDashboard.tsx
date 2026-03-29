@@ -24,6 +24,7 @@ const EmployerDashboard = () => {
 
   const employerStudents = placements.filter(p => p.employerName === (currentUser?.company || 'TechCorp Inc.'));
   const myEvals = evaluations.filter(e => e.employerId === currentUser?.id);
+  const ratingOptions = ['1', '2', '3', '4', '5'];
 
   const handleSubmitEval = () => {
     if (!evalStudent || !evalTerm) {
@@ -45,6 +46,7 @@ const EmployerDashboard = () => {
       attitude: parseInt(attitude),
       comments,
       submittedAt: new Date().toISOString(),
+      pdfUrl: undefined
     });
     toast.success('Evaluation submitted!');
     setShowForm(false);
@@ -62,7 +64,31 @@ const EmployerDashboard = () => {
     setPdfFile(file || null);
   };
 
-  const ratingOptions = ['1', '2', '3', '4', '5'];
+  const handleDownloadPdf = async () => {
+    if (!evalStudent || !evalTerm) {
+      toast.error("Please fill out student and term first");
+      return;
+    }
+  
+    const { default: jsPDF } = await import("jspdf");
+    const doc = new jsPDF();
+  
+    doc.setFontSize(16);
+    doc.text("Student Evaluation Form", 20, 20);
+  
+    doc.setFontSize(12);
+    doc.text(`Student: ${evalStudent}`, 20, 40);
+    doc.text(`Work Term: ${evalTerm}`, 20, 50);
+  
+    doc.text(`Behaviour: `, 20, 70);
+    doc.text(`Skills: `, 20, 80);
+    doc.text(`Knowledge: `, 20, 90);
+    doc.text(`Attitude:  `, 20, 100);
+  
+    doc.text("Comments: ", 20, 120);
+      
+    doc.save(`${evalStudent}_evaluation.pdf`);
+  };
 
   return (
     <div className="page-container animate-fade-in">
@@ -205,7 +231,7 @@ const EmployerDashboard = () => {
             </div>
             <div className="flex gap-2">
               <Button className="flex-1" onClick={handleSubmitEval}>Submit Online</Button>
-              <Button variant="outline" onClick={() => toast.info('PDF download would start here')}>
+              <Button variant="outline" onClick={handleDownloadPdf}>
                 <Download className="mr-1 h-4 w-4" /> Download PDF
               </Button>
             </div>

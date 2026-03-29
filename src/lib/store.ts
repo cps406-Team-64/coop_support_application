@@ -49,6 +49,7 @@ export interface Placement {
 }
 
 export interface EvaluationForm {
+  pdfUrl: any;
   id: string;
   employerId: string;
   studentName: string;
