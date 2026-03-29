@@ -38,7 +38,7 @@ const LandingPage = () => {
           <GraduationCap className="h-8 w-8 text-primary-foreground" />
         </div>
         <h1 className="font-heading text-4xl font-bold tracking-tight text-foreground">Co-op Portal</h1>
-        <p className="mt-2 text-lg text-muted-foreground">Cooperative Education Management System</p>
+        <p className="mt-2 text-lg text-muted-foreground">Centralized Co-Op Education Management Portal</p>
       </div>
 
       <div className="grid w-full max-w-4xl gap-6 md:grid-cols-3 animate-fade-in" style={{ animationDelay: '0.1s' }}>
