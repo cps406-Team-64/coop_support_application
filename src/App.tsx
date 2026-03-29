@@ -13,7 +13,11 @@ import EmployerDashboard from "./pages/EmployerDashboard";
 import CoordinatorDashboard from "./pages/CoordinatorDashboard";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { refetchOnWindowFocus: false },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>

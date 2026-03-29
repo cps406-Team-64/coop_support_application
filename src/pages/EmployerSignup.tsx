@@ -1,20 +1,20 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAppStore } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
+import { registerUser } from '@/services/authService'; // Ensure this service exists
 
 const EmployerSignup = () => {
   const navigate = useNavigate();
-  const { login } = useAppStore();
   const [name, setName] = useState('');
   const [company, setCompany] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const validate = () => {
@@ -28,12 +28,32 @@ const EmployerSignup = () => {
     return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
-    login({ id: `EMP-${Date.now()}`, name, email, role: 'employer', company });
-    toast.success('Account created successfully!');
-    navigate('/dashboard/employer');
+
+    setLoading(true);
+    try {
+      // 1. Call your actual Firebase registration service
+      const result = await registerUser(email, password, {
+        name,
+        fullName: name,
+        company,
+        role: 'employer',
+      });
+
+      if (result.success) {
+        toast.success('Registration successful! Please log in with your new account.');
+        // 2. Redirect to Login instead of Dashboard
+        navigate('/login/employer');
+      } else {
+        toast.error(result.error || 'Registration failed');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'An unexpected error occurred');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -48,19 +68,33 @@ const EmployerSignup = () => {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {[
-              { id: 'name', label: 'Full Name', value: name, setter: setName, placeholder: 'John Doe' },
-              { id: 'company', label: 'Company', value: company, setter: setCompany, placeholder: 'Acme Corp' },
-              { id: 'email', label: 'Email', value: email, setter: setEmail, placeholder: 'you@company.com', type: 'email' },
-              { id: 'password', label: 'Password', value: password, setter: setPassword, placeholder: '••••••••', type: 'password' },
-            ].map((field) => (
-              <div key={field.id} className="space-y-2">
-                <Label htmlFor={field.id}>{field.label}</Label>
-                <Input id={field.id} type={field.type || 'text'} placeholder={field.placeholder} value={field.value} onChange={(e) => field.setter(e.target.value)} />
-                {errors[field.id] && <p className="text-xs text-destructive">{errors[field.id]}</p>}
-              </div>
-            ))}
-            <Button type="submit" className="w-full">Create Account</Button>
+            <div className="space-y-2">
+              <Label htmlFor="name">Full Name</Label>
+              <Input id="name" placeholder="John Doe" value={name} onChange={(e) => setName(e.target.value)} />
+              {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="company">Company Name</Label>
+              <Input id="company" placeholder="Acme Corp" value={company} onChange={(e) => setCompany(e.target.value)} />
+              {errors.company && <p className="text-xs text-destructive">{errors.company}</p>}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="email">Work Email</Label>
+              <Input id="email" type="email" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+              {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input id="password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
+              {errors.password && <p className="text-xs text-destructive">{errors.password}</p>}
+            </div>
+
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating Account...</> : 'Create Account'}
+            </Button>
           </form>
         </CardContent>
       </Card>

@@ -1,6 +1,8 @@
-import { useState } from 'react';
-import { useAppStore } from '@/lib/store';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { useState, useEffect } from 'react';
+import { useAppStore, type Evaluation, type Placement } from '@/lib/store';
+import { db } from '@/services/firebase';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,10 +10,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Briefcase, FileText, Upload, Star, Download, Users } from 'lucide-react';
+import { FileText, Users, Star, Download } from 'lucide-react';
 
 const EmployerDashboard = () => {
-  const { currentUser, evaluations, addEvaluation, placements } = useAppStore();
+  const { currentUser, evaluations = [], addEvaluation, placements = [], setPlacements } = useAppStore();
   const [showForm, setShowForm] = useState(false);
   const [evalStudent, setEvalStudent] = useState('');
   const [evalTerm, setEvalTerm] = useState('');
@@ -20,23 +22,27 @@ const EmployerDashboard = () => {
   const [knowledge, setKnowledge] = useState('3');
   const [attitude, setAttitude] = useState('3');
   const [comments, setComments] = useState('');
-  const [pdfFile, setPdfFile] = useState<File | null>(null);
 
-  const employerStudents = placements.filter(p => p.employerName === (currentUser?.company || 'TechCorp Inc.'));
+  // Real-time listener for placements related to this company
+  useEffect(() => {
+    if (!currentUser?.company) return;
+    const q = query(collection(db, 'placements'), where('employerName', '==', currentUser.company));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Placement[];
+      setPlacements(data);
+    });
+    return () => unsubscribe();
+  }, [currentUser?.company, setPlacements]);
+
+  const employerStudents = placements.filter(p => p.employerName === (currentUser?.company));
   const myEvals = evaluations.filter(e => e.employerId === currentUser?.id);
+  const ratingOptions = ['1', '2', '3', '4', '5'];
 
   const handleSubmitEval = () => {
-    if (!evalStudent || !evalTerm) {
-      toast.error('Please select student and work term');
-      return;
-    }
-    const duplicate = myEvals.some(e => e.studentName === evalStudent && e.workTerm === evalTerm);
-    if (duplicate) {
-      toast.error('An evaluation for this student/term already exists');
-      return;
-    }
+    if (!evalStudent || !evalTerm) return toast.error('Please fill required fields');
+    
     addEvaluation({
-      employerId: currentUser?.id || 'EMP-001',
+      employerId: currentUser?.id || '',
       studentName: evalStudent,
       workTerm: evalTerm,
       behaviour: parseInt(behaviour),
@@ -45,13 +51,13 @@ const EmployerDashboard = () => {
       attitude: parseInt(attitude),
       comments,
       submittedAt: new Date().toISOString(),
+      pdfUrl: undefined
     });
     toast.success('Evaluation submitted!');
     setShowForm(false);
-    setEvalStudent('');
-    setComments('');
   };
 
+  if (!currentUser) return <div className="p-20 text-center">Loading...</div>;
   const handlePdfUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && file.type !== 'application/pdf') {
@@ -62,97 +68,71 @@ const EmployerDashboard = () => {
     setPdfFile(file || null);
   };
 
-  const ratingOptions = ['1', '2', '3', '4', '5'];
+  const handleDownloadPdf = async () => {
+    if (!evalStudent || !evalTerm) {
+      toast.error("Please fill out student and term first");
+      return;
+    }
+  
+    const { default: jsPDF } = await import("jspdf");
+    const doc = new jsPDF();
+  
+    doc.setFontSize(16);
+    doc.text("Student Evaluation Form", 20, 20);
+  
+    doc.setFontSize(12);
+    doc.text(`Student: ${evalStudent}`, 20, 40);
+    doc.text(`Work Term: ${evalTerm}`, 20, 50);
+  
+    doc.text(`Behaviour: `, 20, 70);
+    doc.text(`Skills: `, 20, 80);
+    doc.text(`Knowledge: `, 20, 90);
+    doc.text(`Attitude:  `, 20, 100);
+  
+    doc.text("Comments: ", 20, 120);
+      
+    doc.save(`${evalStudent}_evaluation.pdf`);
+  };
 
   return (
-    <div className="page-container animate-fade-in">
+    <div className="p-8 animate-fade-in">
       <div className="mb-8">
-        <h1 className="font-heading text-3xl font-bold">Employer Dashboard</h1>
-        <p className="text-muted-foreground">{currentUser?.company || 'TechCorp Inc.'} — Manage student evaluations</p>
+        <h1 className="text-3xl font-bold">Employer Dashboard</h1>
+        <p className="text-muted-foreground">{currentUser.company} — Portal</p>
       </div>
 
-      <div className="mb-8 grid gap-4 sm:grid-cols-3">
-        <Card className="card-elevated">
-          <CardContent className="flex items-center gap-4 pt-6">
-            <Users className="h-8 w-8 text-primary" />
-            <div>
-              <p className="text-2xl font-bold font-heading">{employerStudents.length}</p>
-              <p className="text-xs text-muted-foreground">Employed Students</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="card-elevated">
-          <CardContent className="flex items-center gap-4 pt-6">
-            <FileText className="h-8 w-8 text-success" />
-            <div>
-              <p className="text-2xl font-bold font-heading">{myEvals.length}</p>
-              <p className="text-xs text-muted-foreground">Submitted Forms</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="card-elevated">
-          <CardContent className="flex items-center gap-4 pt-6">
-            <Star className="h-8 w-8 text-warning" />
-            <div>
-              <p className="text-2xl font-bold font-heading">{employerStudents.filter(s => !myEvals.some(e => e.studentName === s.studentName)).length}</p>
-              <p className="text-xs text-muted-foreground">Pending Evaluations</p>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid gap-4 sm:grid-cols-3 mb-8">
+        <Card><CardContent className="pt-6">
+          <div className="flex items-center gap-4">
+            <Users className="h-8 w-8 text-blue-500" />
+            <div><p className="text-2xl font-bold">{employerStudents.length}</p><p className="text-xs text-muted-foreground">Students</p></div>
+          </div>
+        </CardContent></Card>
+        <Card><CardContent className="pt-6">
+          <div className="flex items-center gap-4">
+            <FileText className="h-8 w-8 text-green-500" />
+            <div><p className="text-2xl font-bold">{myEvals.length}</p><p className="text-xs text-muted-foreground">Evaluations</p></div>
+          </div>
+        </CardContent></Card>
       </div>
 
-      {/* Employed Students */}
-      <Card className="card-elevated mb-6">
-        <CardHeader>
-          <CardTitle className="font-heading">Employed Students</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {employerStudents.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No students currently employed.</p>
-          ) : (
-            <div className="space-y-2">
-              {employerStudents.map(s => (
-                <div key={s.id} className="flex items-center justify-between rounded-lg border p-3">
-                  <div>
-                    <p className="font-medium">{s.studentName}</p>
-                    <p className="text-xs text-muted-foreground">{s.position} — {s.startDate} to {s.endDate}</p>
-                  </div>
-                  <span className={`status-badge ${s.status === 'Active' ? 'status-accepted' : 'status-dismissed'}`}>{s.status}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Submitted evaluations */}
-      <Card className="card-elevated mb-6">
+      <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="font-heading">Submitted Evaluations</CardTitle>
-          <Button size="sm" onClick={() => setShowForm(true)}><FileText className="mr-1 h-4 w-4" /> New Evaluation</Button>
+          <CardTitle>Evaluations</CardTitle>
+          <Button onClick={() => setShowForm(true)}>New Evaluation</Button>
         </CardHeader>
         <CardContent>
-          {myEvals.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No evaluations submitted yet.</p>
-          ) : (
-            <div className="space-y-2">
-              {myEvals.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()).map(ev => (
-                <div key={ev.id} className="flex items-center justify-between rounded-lg border p-3">
-                  <div>
-                    <p className="font-medium">{ev.studentName}</p>
-                    <p className="text-xs text-muted-foreground">{ev.workTerm} — Submitted {new Date(ev.submittedAt).toLocaleDateString()}</p>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span>B:{ev.behaviour}</span><span>S:{ev.skills}</span><span>K:{ev.knowledge}</span><span>A:{ev.attitude}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+          {myEvals.length === 0 ? <p className="text-sm text-muted-foreground">No evaluations yet.</p> : (
+            myEvals.map(ev => (
+              <div key={ev.id} className="p-3 border-b flex justify-between">
+                <span>{ev.studentName}</span>
+                <span className="text-xs text-muted-foreground">{ev.workTerm}</span>
+              </div>
+            ))
           )}
         </CardContent>
       </Card>
 
-      {/* Evaluation Form Dialog */}
       <Dialog open={showForm} onOpenChange={setShowForm}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Student Evaluation Form</DialogTitle></DialogHeader>
@@ -205,7 +185,7 @@ const EmployerDashboard = () => {
             </div>
             <div className="flex gap-2">
               <Button className="flex-1" onClick={handleSubmitEval}>Submit Online</Button>
-              <Button variant="outline" onClick={() => toast.info('PDF download would start here')}>
+              <Button variant="outline" onClick={handleDownloadPdf}>
                 <Download className="mr-1 h-4 w-4" /> Download PDF
               </Button>
             </div>
