@@ -9,23 +9,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { Briefcase, FileText, Upload, Star, Download, Users } from 'lucide-react';
-import { db, storage } from '@/services/firebase.ts'; 
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-
-type Evaluation = {
-  id: string;
-  employerId: string;
-  studentName: string;
-  workTerm: string;
-  behaviour: number;
-  skills: number;
-  knowledge: number;
-  attitude: number;
-  comments: string;
-  pdfUrl: string;
-  submittedAt: string;
-};
 
 const EmployerDashboard = () => {
   const { currentUser, evaluations, addEvaluation, placements } = useAppStore();
@@ -38,11 +21,38 @@ const EmployerDashboard = () => {
   const [attitude, setAttitude] = useState('3');
   const [comments, setComments] = useState('');
   const [pdfFile, setPdfFile] = useState<File | null>(null);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
 
   const employerStudents = placements.filter(p => p.employerName === (currentUser?.company || 'TechCorp Inc.'));
   const myEvals = evaluations.filter(e => e.employerId === currentUser?.id);
   const ratingOptions = ['1', '2', '3', '4', '5'];
+
+  const handleSubmitEval = () => {
+    if (!evalStudent || !evalTerm) {
+      toast.error('Please select student and work term');
+      return;
+    }
+    const duplicate = myEvals.some(e => e.studentName === evalStudent && e.workTerm === evalTerm);
+    if (duplicate) {
+      toast.error('An evaluation for this student/term already exists');
+      return;
+    }
+    addEvaluation({
+      employerId: currentUser?.id || 'EMP-001',
+      studentName: evalStudent,
+      workTerm: evalTerm,
+      behaviour: parseInt(behaviour),
+      skills: parseInt(skills),
+      knowledge: parseInt(knowledge),
+      attitude: parseInt(attitude),
+      comments,
+      submittedAt: new Date().toISOString(),
+      pdfUrl: undefined
+    });
+    toast.success('Evaluation submitted!');
+    setShowForm(false);
+    setEvalStudent('');
+    setComments('');
+  };
 
   const handlePdfUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -54,88 +64,30 @@ const EmployerDashboard = () => {
     setPdfFile(file || null);
   };
 
-  const handlePdfDownload = async (url: string) => {
-    if (!url) return toast.error('No PDF available');
-    try {
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = url.split('%2F').pop()?.split('?')[0] || 'evaluation.pdf';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (error) {
-      console.error('PDF download error:', error);
-      toast.error('Failed to download PDF');
-    }
-  };
-
-  const handleSubmitEval = async () => {
+  const handleDownloadPdf = async () => {
     if (!evalStudent || !evalTerm) {
-      toast.error('Please select student and work term');
+      toast.error("Please fill out student and term first");
       return;
     }
-
-    const duplicate = myEvals.some(e => e.studentName === evalStudent && e.workTerm === evalTerm);
-    if (duplicate) {
-      toast.error('An evaluation for this student/term already exists');
-      return;
-    }
-
-    let uploadedPdfUrl = '';
-    if (pdfFile) {
-      try {
-        const fileRef = ref(storage, `evaluations/${currentUser?.id}/${evalStudent}_${evalTerm}.pdf`);
-        await uploadBytes(fileRef, pdfFile);
-        uploadedPdfUrl = await getDownloadURL(fileRef);
-      } catch (error) {
-        console.error('PDF upload error:', error);
-        toast.error('Failed to upload PDF');
-        return;
-      }
-    }
-
-    try {
-      const docRef = await addDoc(collection(db, 'evaluations'), {
-        employerId: currentUser?.id || 'EMP-001',
-        studentName: evalStudent,
-        workTerm: evalTerm,
-        behaviour: parseInt(behaviour),
-        skills: parseInt(skills),
-        knowledge: parseInt(knowledge),
-        attitude: parseInt(attitude),
-        comments,
-        pdfUrl: uploadedPdfUrl,
-        submittedAt: serverTimestamp(),
-      });
-
-      const newEval: Evaluation = ({
-        id: docRef.id,
-        employerId: currentUser?.id || 'EMP-001',
-        studentName: evalStudent,
-        workTerm: evalTerm,
-        behaviour: parseInt(behaviour),
-        skills: parseInt(skills),
-        knowledge: parseInt(knowledge),
-        attitude: parseInt(attitude),
-        comments,
-        pdfUrl: uploadedPdfUrl || '',
-        submittedAt: new Date().toISOString(),
-      });
-
-      toast.success('Evaluation submitted!');
-      setShowForm(false);
-      setEvalStudent('');      
-      setEvalTerm('');
-      setComments('');
-      setBehaviour('3');
-      setSkills('3');
-      setKnowledge('3');
-      setAttitude('3');
-      setPdfFile(null);
-    } catch (error) {
-      console.error('Submission error:', error);
-      toast.error('Failed to submit evaluation');
-    }
+  
+    const { default: jsPDF } = await import("jspdf");
+    const doc = new jsPDF();
+  
+    doc.setFontSize(16);
+    doc.text("Student Evaluation Form", 20, 20);
+  
+    doc.setFontSize(12);
+    doc.text(`Student: ${evalStudent}`, 20, 40);
+    doc.text(`Work Term: ${evalTerm}`, 20, 50);
+  
+    doc.text(`Behaviour: `, 20, 70);
+    doc.text(`Skills: `, 20, 80);
+    doc.text(`Knowledge: `, 20, 90);
+    doc.text(`Attitude:  `, 20, 100);
+  
+    doc.text("Comments: ", 20, 120);
+      
+    doc.save(`${evalStudent}_evaluation.pdf`);
   };
 
   return (
@@ -210,19 +162,17 @@ const EmployerDashboard = () => {
             <p className="text-muted-foreground text-sm">No evaluations submitted yet.</p>
           ) : (
             <div className="space-y-2">
-{myEvals.map(ev => (
-  <div key={ev.id} className="flex items-center justify-between p-3 border rounded-lg">
-    <div>
-      <p className="font-medium">{ev.studentName}</p>
-      <p className="text-xs text-muted-foreground">{ev.workTerm}</p>
-    </div>
-    {ev.pdfUrl && (
-      <Button size="sm" onClick={() => handlePdfDownload(ev.pdfUrl)}>
-        <Download className="mr-1 h-4 w-4" /> Download PDF
-      </Button>
-    )}
-  </div>
-))}
+              {myEvals.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()).map(ev => (
+                <div key={ev.id} className="flex items-center justify-between rounded-lg border p-3">
+                  <div>
+                    <p className="font-medium">{ev.studentName}</p>
+                    <p className="text-xs text-muted-foreground">{ev.workTerm} — Submitted {new Date(ev.submittedAt).toLocaleDateString()}</p>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>B:{ev.behaviour}</span><span>S:{ev.skills}</span><span>K:{ev.knowledge}</span><span>A:{ev.attitude}</span>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </CardContent>
@@ -243,7 +193,6 @@ const EmployerDashboard = () => {
                 </SelectContent>
               </Select>
             </div>
-
             <div className="space-y-2">
               <Label>Work Term</Label>
               <Select value={evalTerm} onValueChange={setEvalTerm}>
@@ -254,7 +203,6 @@ const EmployerDashboard = () => {
                   <SelectItem value="Fall 2026">Fall 2026</SelectItem>
                 </SelectContent>
               </Select>
-
             </div>
             {[
               { label: 'Behaviour', value: behaviour, setter: setBehaviour },
@@ -272,22 +220,19 @@ const EmployerDashboard = () => {
                 </Select>
               </div>
             ))}
-
             <div className="space-y-2">
               <Label>Comments</Label>
               <Textarea value={comments} onChange={(e) => setComments(e.target.value)} placeholder="Additional comments..." />
             </div>
-
             <div className="space-y-2">
               <Label>Upload PDF (optional)</Label>
               <Input type="file" accept=".pdf" onChange={handlePdfUpload} />
               <p className="text-xs text-muted-foreground">Only PDF files accepted</p>
             </div>
-
             <div className="flex gap-2">
               <Button className="flex-1" onClick={handleSubmitEval}>Submit Online</Button>
-              <Button variant="outline" onClick={() => pdfFile && handlePdfDownload(URL.createObjectURL(pdfFile))}>
-                <Download className="mr-1 h-4 w-4"/> Download PDF
+              <Button variant="outline" onClick={handleDownloadPdf}>
+                <Download className="mr-1 h-4 w-4" /> Download PDF
               </Button>
             </div>
           </div>

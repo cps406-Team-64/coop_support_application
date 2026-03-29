@@ -1,13 +1,18 @@
 {
   "compilerOptions": {
     "allowJs": true,
+    "esModuleInterop": true,
+    "module": "ESNext",
+    "moduleResolution": "Node",
     "noImplicitAny": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "strictNullChecks": true,
     "skipLibCheck": true,
     "baseUrl": ".",
-    "paths": { "@/*": ["./src/*"] }
+    "paths": { "@/*": ["./src/*"] },
+    "strict": true,
+    "target": "ES2023"
   },
   "files": [],              
   "references": [
