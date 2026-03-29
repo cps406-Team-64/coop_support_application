@@ -4,20 +4,17 @@ import "./index.css";
 
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
 // Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "AIzaSyC4NEjj2Xl0sDVnaUQ3R0cOTkJz9aAIfY0",
-  authDomain: "co-op-application.firebaseapp.com",
-  projectId: "co-op-application",
-  storageBucket: "co-op-application.firebasestorage.app",
-  messagingSenderId: "826417597194",
-  appId: "1:826417597194:web:1ca1759888c5068c8548f3",
-  measurementId: "G-21G3FVGC1Z"
+  apiKey: "AIzaSyAvpWzC0gb0cshtvnaCYJFg7XwXRQ0PDJo",
+  authDomain: "test-project-644e3.firebaseapp.com",
+  projectId: "test-project-644e3",
+  storageBucket: "test-project-644e3.firebasestorage.app",
+  messagingSenderId: "747961223623",
+  appId: "1:747961223623:web:156c1ddf8e93a86788b1e2"
 };
 
 // Initialize Firebase

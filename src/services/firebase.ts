@@ -1,17 +1,21 @@
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
+import { initializeApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+import { getFirestore, doc, setDoc, serverTimestamp } from "firebase/firestore";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyAcd0S2M58jgEit4YSMjZAErhIWKe7U3sw",
-  authDomain: "co-op-application-platform.firebaseapp.com",
-  projectId: "co-op-application-platform",
-  storageBucket: "co-op-application-platform.firebasestorage.app",
-  messagingSenderId: "692333236358",
-  appId: "1:692333236358:web:d60e45b3d7a300114ac107"
+  apiKey: "AIzaSyDokaQwX5K-yW0gBCn-zH6OOkwhfvIWYPc",
+  authDomain: "co-op-support-application.firebaseapp.com",
+  projectId: "co-op-support-application",
+  storageBucket: "co-op-support-application.firebasestorage.app",
+  messagingSenderId: "1098502627837",
+  appId: "1:1098502627837:web:7f0ad4a7077d0d09ac3994"
 };
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+export default app;
