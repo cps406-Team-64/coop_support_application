@@ -1,5 +1,7 @@
 {
   "projects": {
     "default": "co-op-support-application"
-  }
+  },
+  "targets": {},
+  "etags": {}
 }

@@ -20,62 +20,12 @@ export interface User {
 
 export interface Notification {
   id: string;
-  userId: string; // Target user
+  userId: string;
   title: string;
   message: string;
   type: 'info' | 'warning' | 'success';
   read: boolean;
   createdAt: string;
-}
-
-export interface StatusHistoryEntry {
-  id: string;
-  applicationId: string;
-  studentId: string;
-  status: ApplicationStatus;
-  timestamp: string;
-  coordinatorId: string;
-  reason?: string;
-}
-
-export interface Placement {
-  id: string;
-  studentId: string;
-  studentName: string;
-  employerName: string;
-  position: string;
-  startDate: string;
-  endDate: string;
-  status: 'Active' | 'Completed' | 'Rejected' | 'Dismissed';
-  rejectionReason?: string;
-  rejectionDate?: string;
-}
-
-export interface EvaluationForm {
-  pdfUrl: any;
-  id: string;
-  employerId: string;
-  studentName: string;
-  workTerm: string;
-  behaviour: number;
-  skills: number;
-  knowledge: number;
-  attitude: number;
-  comments: string;
-  submittedAt: string;
-  pdfFile?: string;
-}
-
-export interface WorkTermReport {
-  id: string;
-  studentId: string;
-  employerName: string;
-  position: string;
-  workTerm: string;
-  startDate: string;
-  endDate: string;
-  fileName: string;
-  submittedAt: string;
 }
 
 export interface Evaluation {
@@ -110,6 +60,19 @@ export interface Application {
   userId: string;
 }
 
+export interface Report {
+  id: string;
+  studentId: string;
+  studentName: string; // Added this field
+  employerName: string;
+  position: string;
+  workTerm: string;
+  startDate: string;
+  endDate: string;
+  fileName: string;
+  submittedAt: string;
+}
+
 interface AppState {
   currentUser: User | null;
   isAuthenticated: boolean;
@@ -122,6 +85,7 @@ interface AppState {
   logout: () => void;
   setApplications: (apps: Application[]) => void;
   setPlacements: (placements: Placement[]) => void;
+  setReports: (reports: Report[]) => void; // Added for syncing
   addReport: (report: Omit<Report, 'id'>) => void;
   addEvaluation: (evaluation: Omit<Evaluation, 'id'>) => void;
   addNotification: (notification: Omit<Notification, 'id' | 'createdAt' | 'read'>) => void;
@@ -143,6 +107,7 @@ export const useAppStore = create<AppState>()(
       logout: () => set({ currentUser: null, isAuthenticated: false }),
       setApplications: (apps) => set({ applications: apps }),
       setPlacements: (placements) => set({ placements }),
+      setReports: (reports) => set({ reports }),
 
       addReport: (reportData) => set((state) => ({
         reports: [{ ...reportData, id: Math.random().toString(36).substr(2, 9) }, ...state.reports]
