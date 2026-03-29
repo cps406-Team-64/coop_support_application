@@ -1,9 +1,75 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if false;
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper functions for role checks
+    function isCoordinator() {
+      return isAuthenticated() && request.auth.token.role == 'coordinator';
+    }
+    
+    function isEmployer() {
+      return isAuthenticated() && request.auth.token.role == 'employer';
+    }
+    
+    function isStudent() {
+      return isAuthenticated() && request.auth.token.role == 'student';
+    }
+    
+    function isOwnProfile(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // User profiles collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isCoordinator() || isOwnProfile(userId);
+      
+      // Students can only update certain fields in their own profile
+      allow update: if isOwnProfile(userId) && request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['displayName', 'phoneNumber', 'profilePicture']);
+    }
+    
+    // Applications collection
+    match /applications/{applicationId} {
+      // Anyone can read if they're related to the application
+      allow read: if isAuthenticated() && (
+        isCoordinator() ||
+        isEmployer() ||
+        isOwnProfile(resource.data.studentId)
+      );
+      
+      // Only coordinators can create/update applications
+      allow write: if isCoordinator();
+      
+      // But students can view their own applications
+      allow list: if isAuthenticated() && (
+        isCoordinator() ||
+        isEmployer() ||
+        request.query.studentId == request.auth.uid
+      );
+    }
+    
+    // Employers collection
+    match /employers/{employerId} {
+      allow read: if isAuthenticated();
+      allow write: if isCoordinator();
+    }
+    
+    // Job postings (if you have them)
+    match /jobs/{jobId} {
+      allow read: if isAuthenticated();
+      allow create: if isEmployer() || isCoordinator();
+      allow update, delete: if isCoordinator();
+    }
+    
+    // Status updates/changes log
+    match /statusChanges/{changeId} {
+      allow read: if isCoordinator();
+      allow write: if isCoordinator();
     }
   }
 }
