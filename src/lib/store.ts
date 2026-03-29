@@ -98,7 +98,7 @@ export interface Placement {
   position: string;
   startDate: string;
   endDate: string;
-  status: 'Active' | 'Completed' | 'Dismissed';
+  status: 'Active' | 'Completed' | 'Dismissed' | 'rejected';
 }
 
 export interface Application {
