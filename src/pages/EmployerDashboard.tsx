@@ -104,7 +104,7 @@ const EmployerDashboard = () => {
     }
   };
 
-  if (!currentUser) return <div className="p-20 text-center">Loading...</div>;
+  if (!currentUser) return            <div className="p-20 text-center">Loading...</div>;
 
   return (
     <div className="p-8 animate-fade-in">
