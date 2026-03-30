@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { toast } from 'sonner';
 import { ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { registerStudent } from '@/services/authService'; // Import the service
+import { getAuth, fetchSignInMethodsForEmail } from 'firebase/auth';
 
 const ApplicationPage = () => {
   const navigate = useNavigate();
@@ -36,7 +37,7 @@ const ApplicationPage = () => {
     
     // Password validation
     if (!password) e.password = 'Password is required.';
-    else if (password.length < 6) e.password = 'Password must be at least 6 characters.';
+    else if (password.length < 8) e.password = 'Password must be at least 8 characters.';
     
     if (password !== confirmPassword) e.confirmPassword = 'Passwords do not match.';
 
@@ -44,10 +45,26 @@ const ApplicationPage = () => {
     return Object.keys(e).length === 0;
   };
 
+  const checkEmailInUse = async (studentEmail: string) => {
+    const auth = getAuth();
+    try {
+      const methods = await fetchSignInMethodsForEmail(auth, studentEmail);
+      return methods.length > 0; // If methods exist, the email is already registered
+    } catch (error) {
+      console.error('Error checking email:', error);
+      return false;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
-    
+    // Check if the email is already registered in Firebase Authentication
+    const emailInUse = await checkEmailInUse(studentEmail);
+    if (emailInUse) {
+      toast.error('This email is already in use.');
+      return;
+    }
     setLoading(true);
     
     // Register with Firebase
@@ -130,7 +147,7 @@ const ApplicationPage = () => {
                 id="studentEmail" 
                 type="email" 
                 placeholder="you@torontomu.ca" 
-                value={studentEmail} 
+                value={studentEmail.toLowerCase()} 
                 onChange={(e) => setStudentEmail(e.target.value)} 
               />
               {errors.studentEmail && <p className="text-xs text-destructive">{errors.studentEmail}</p>}

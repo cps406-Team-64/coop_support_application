@@ -12,10 +12,11 @@ import { toast } from 'sonner';
 
 const statusColors: Record<string, string> = {
   'Applied': 'bg-blue-100 text-blue-700',
-  'Provisionally Accepted': 'bg-green-100 text-green-700',
+  'Provisionally Accepted': 'bg-yellow-100 text-yellow-700',
   'Finally Accepted': 'bg-green-200 text-green-800',
-  'Provisionally Rejected': 'bg-red-100 text-red-700',
-  'Flagged for Review': 'bg-yellow-100 text-yellow-700',
+  'Provisionally Rejected': 'bg-yellow-100 text-yellow-700',
+  'Finally Rejected': 'bg-red-100 text-red-700',
+  'Placement Rejected': 'bg-red-100 text-red-700',
 };
 
 const allStatuses: ApplicationStatus[] = [

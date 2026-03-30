@@ -17,4 +17,20 @@ export default defineConfig({
       "@": path.resolve(__dirname, "src"),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          // Dynamically split large libraries into their own chunk
+          if (id.includes("jspdf")) {
+            return "jspdf"; // Creates a separate chunk for jsPDF
+          }
+          if (id.includes("lodash")) {
+            return "lodash"; // Creates a separate chunk for Lodash
+          }
+        },
+      },
+    },
+    chunkSizeWarningLimit: 1000,
+  },
 });

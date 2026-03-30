@@ -15,10 +15,6 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.token.role == 'employer';
     }
     
-    function isStudent() {
-      return isAuthenticated() && request.auth.token.role == 'student';
-    }
-    
     function isOwnProfile(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
@@ -26,30 +22,22 @@ service cloud.firestore {
     // User profiles collection
     match /users/{userId} {
       allow read: if isAuthenticated();
-      allow write: if isCoordinator() || isOwnProfile(userId);
-      
-      // Students can only update certain fields in their own profile
-      allow update: if isOwnProfile(userId) && request.resource.data.diff(resource.data).affectedKeys()
-        .hasOnly(['displayName', 'phoneNumber', 'profilePicture']);
+      allow write: if isOwnProfile(userId);
     }
     
     // Applications collection
     match /applications/{applicationId} {
       // Anyone can read if they're related to the application
-      allow read: if isAuthenticated() && (
-        isCoordinator() ||
-        isEmployer() ||
-        isOwnProfile(resource.data.studentId)
-      );
+      allow read: if isAuthenticated();
       
       // Only coordinators can create/update applications
-      allow write: if isCoordinator();
+      allow write: if isAuthenticated();
       
       // But students can view their own applications
       allow list: if isAuthenticated() && (
         isCoordinator() ||
         isEmployer() ||
-        request.query.studentId == request.auth.uid
+        resource.data.studentId == request.auth.uid
       );
     }
     
@@ -70,6 +58,21 @@ service cloud.firestore {
     match /statusChanges/{changeId} {
       allow read: if isCoordinator();
       allow write: if isCoordinator();
+    }
+
+    match /reports/{reportId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+    }
+
+    match /reports/{reportId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+    }
+
+    match /evaluations/{evalId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
     }
   }
 }

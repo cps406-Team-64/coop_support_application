@@ -20,10 +20,21 @@ const EmployerSignup = () => {
   const validate = () => {
     const e: Record<string, string> = {};
     if (!name.trim()) e.name = 'Name is required';
+    else if (!/^[A-Za-z\s]+$/.test(name)) e.name = 'Name must contain only alphabetical letters.';
+    else if (!/^[A-Za-z]+(?:\s+[A-Za-z]+)+$/.test(name.trim())) e.name = 'Enter both first and last name.';
+
     if (!company.trim()) e.company = 'Company is required';
+
     if (!email.trim()) e.email = 'Email is required';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = 'Invalid email format';
-    if (!password || password.length < 8) e.password = 'Password must be at least 8 characters';
+    
+    if (!password) e.password = 'Password is required.';
+    else if (password.length < 8) e.password = 'Password must be at least 8 characters.';
+    else if (!/[a-z]/.test(password)) e.password = 'Password must include a lowercase letter.';
+    else if (!/[A-Z]/.test(password)) e.password = 'Password must include an uppercase letter.';
+    else if (!/\d/.test(password)) e.password = 'Password must include a number.';
+    else if (!/[^A-Za-z\d]/.test(password)) e.password = 'Password must include a special character.';
+
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -82,7 +93,7 @@ const EmployerSignup = () => {
 
             <div className="space-y-2">
               <Label htmlFor="email">Work Email</Label>
-              <Input id="email" type="email" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <Input id="email" type="email" placeholder="you@company.com" value={email.toLowerCase()} onChange={(e) => setEmail(e.target.value)} />
               {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
             </div>
 
