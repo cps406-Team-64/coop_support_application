@@ -29,16 +29,28 @@ const CoordinatorDashboard = () => {
   const [search, setSearch] = useState('');
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
   const [newStatus, setNewStatus] = useState<ApplicationStatus | ''>('');
-  
+
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'applications'), (snapshot) => {
-      const appsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        history: [],
-        ...doc.data()
-      })) as Application[];
+      const appsData = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          // Ensure these match your Application interface exactly
+          studentId: data.studentId || '',
+          studentName: data.studentName || 'Unknown Student',
+          userId: data.userId || '',
+          status: (data.status as ApplicationStatus) || 'Applied',
+          history: data.history || [],
+        };
+      }) as Application[];
+      
       setApplications(appsData);
+    }, (error) => {
+      console.error("Listener failed:", error);
+      toast.error("Failed to load applications");
     });
+    
     return () => unsubscribe();
   }, [setApplications]);
 
