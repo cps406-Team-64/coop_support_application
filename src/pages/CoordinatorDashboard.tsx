@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useAppStore, type ApplicationStatus, type Application, type StatusHistory, type Report } from '@/lib/store';
 import { db } from '../services/firebase';
 import { collection, onSnapshot, doc, updateDoc, arrayUnion } from 'firebase/firestore';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,21 +22,18 @@ const CoordinatorDashboard = () => {
   const [rationale, setRationale] = useState('');
 
   useEffect(() => {
-    // Sync Applications
     const unsubApps = onSnapshot(collection(db, 'applications'), (snapshot) => {
       const appsData = snapshot.docs.map(doc => {
         const data = doc.data();
         return { 
           id: doc.id, 
           ...data,
-          // Fallback check: ensures studentId is present even if stored as userId in Firestore
           studentId: data.studentId || data.userId || '' 
         };
       }) as Application[];
       setApplications(appsData);
     });
 
-    // Sync Reports
     const unsubReports = onSnapshot(collection(db, 'reports'), (snapshot) => {
       const reportsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Report[];
       setReports(reportsData);
@@ -45,45 +42,44 @@ const CoordinatorDashboard = () => {
     return () => { unsubApps(); unsubReports(); };
   }, [setApplications, setReports]);
 
-  // Filtering Logic
+  const formatStatusDisplay = (status: string) => {
+    const statusMap: Record<string, string> = {
+      'Provisionally Accepted': 'Provisional Accept',
+      'Provisionally Rejected': 'Provisional Reject',
+      'Finally Accepted': 'Final Accept',
+      'Finally Rejected': 'Final Reject',
+      'Applied': 'Applied'
+    };
+    return statusMap[status] || status;
+  };
+
   const filteredApplications = useMemo(() => {
     return applications.filter(app => {
       const matchesSearch = app.studentName.toLowerCase().includes(search.toLowerCase());
       if (!matchesSearch) return false;
 
-      // Logic for checking if a report exists for this specific student
       const hasSubmittedReport = reports.some(r => r.studentId === app.studentId || r.studentId === app.userId);
 
       switch (filter) {
+        case 'applied': return app.status === 'Applied';
         case 'provisionally-accepted': return app.status === 'Provisionally Accepted';
         case 'provisionally-rejected': return app.status === 'Provisionally Rejected';
         case 'finally-accepted': return app.status === 'Finally Accepted';
         case 'finally-rejected': return app.status === 'Finally Rejected';
-        case 'accepted-with-reports': 
-          return app.status === 'Finally Accepted' && hasSubmittedReport;
+        case 'accepted-with-reports': return hasSubmittedReport;
         default: return true;
       }
     });
   }, [applications, reports, filter, search]);
 
-  const validateTransition = (current: ApplicationStatus, next: ApplicationStatus): string | null => {
-    if (current === 'Finally Accepted' || current === 'Finally Rejected') return "Final decisions are locked.";
-    if (next === 'Finally Accepted' && current !== 'Provisionally Accepted') return "Must be 'Provisionally Accepted' first.";
-    if (next === 'Finally Rejected' && current !== 'Provisionally Rejected') return "Must be 'Provisionally Rejected' first.";
-    return null;
-  };
-
   const handleStatusUpdate = async () => {
-    if (!selectedApp || !newStatus || !rationale) return toast.error("Status and Rationale are required");
-
-    const error = validateTransition(selectedApp.status, newStatus as ApplicationStatus);
-    if (error) return toast.error(error);
+    if (!selectedApp || !newStatus) return toast.error("Status is required");
 
     const historyEntry: StatusHistory = {
       status: newStatus as ApplicationStatus,
       changedAt: new Date().toISOString(),
       changedBy: currentUser?.email || 'Coordinator',
-      rationale: rationale
+      rationale: rationale || 'No rationale provided'
     };
 
     try {
@@ -92,14 +88,12 @@ const CoordinatorDashboard = () => {
         status: newStatus,
         history: arrayUnion(historyEntry)
       });
-
       addNotification({
         userId: selectedApp.userId,
         title: 'Application Update',
-        message: `Status changed to ${newStatus}.`,
+        message: `Status changed to ${formatStatusDisplay(newStatus)}.`,
         type: 'success'
       });
-
       toast.success('Status updated');
       setSelectedApp(null);
       setNewStatus('');
@@ -113,23 +107,23 @@ const CoordinatorDashboard = () => {
     <div className="p-8 space-y-6">
       <header>
         <h1 className="text-3xl font-bold">Coordinator Dashboard</h1>
-        <p className="text-muted-foreground">Manage student applications and audit history</p>
+        <p className="text-muted-foreground font-medium">Welcome, {currentUser?.fullName || currentUser?.name || 'Coordinator'}</p>
       </header>
 
-      {/* Filters (Left) and Search (Right) */}
       <div className="flex flex-col md:flex-row gap-4">
         <Select value={filter} onValueChange={setFilter}>
-          <SelectTrigger className="w-full md:w-[280px]">
+          <SelectTrigger className="w-full md:w-[320px]">
             <Filter className="h-4 w-4 mr-2" />
             <SelectValue placeholder="Filter by status" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Applicants</SelectItem>
-            <SelectItem value="provisionally-accepted">Provisionally Accepted</SelectItem>
-            <SelectItem value="provisionally-rejected">Provisionally Rejected</SelectItem>
-            <SelectItem value="finally-accepted">Finally Accepted</SelectItem>
-            <SelectItem value="finally-rejected">Finally Rejected</SelectItem>
-            <SelectItem value="accepted-with-reports">Accepted w/ Submitted Report</SelectItem>
+            <SelectItem value="applied">Applied</SelectItem>
+            <SelectItem value="provisionally-accepted">Provisional Accept</SelectItem>
+            <SelectItem value="provisionally-rejected">Provisional Reject</SelectItem>
+            <SelectItem value="finally-accepted">Final Accept</SelectItem>
+            <SelectItem value="finally-rejected">Final Reject</SelectItem>
+            <SelectItem value="accepted-with-reports">Applicants with Submitted Report</SelectItem>
           </SelectContent>
         </Select>
 
@@ -146,32 +140,36 @@ const CoordinatorDashboard = () => {
 
       <Card>
         <CardContent className="pt-6">
+          {/* overflow-x-auto provides the scrollbar when the child is wider than this div */}
           <div className="overflow-x-auto">
-            <table className="w-full">
+            {/* CHANGES MADE:
+                1. Added 'min-w-[800px]' to force a minimum width. 
+                2. Kept 'table-fixed' so columns maintain their % proportions even when scrolling.
+            */}
+            <table className="w-full table-fixed min-w-[800px]">
               <thead>
                 <tr className="text-left border-b text-sm font-medium text-muted-foreground">
-                  <th className="pb-4 px-2">Student</th>
-                  <th className="pb-4 px-2">Status</th>
-                  <th className="pb-4 px-2">Report</th>
-                  <th className="pb-4 px-2">Audit</th>
-                  <th className="pb-4 px-2 text-right">Actions</th>
+                  <th className="pb-4 px-2 w-[25%]">Student</th>
+                  <th className="pb-4 px-2 w-[20%]">Status</th>
+                  <th className="pb-4 px-2 w-[15%]">Report</th>
+                  <th className="pb-4 px-2 w-[15%]">Audit</th>
+                  <th className="pb-4 px-2 w-[25%] text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {filteredApplications.map((app) => {
-                  // Fixed logic: Checking both studentId and userId for report tracking
                   const hasReport = reports.some(r => r.studentId === app.studentId || r.studentId === app.userId);
                   const isLocked = app.status === 'Finally Accepted' || app.status === 'Finally Rejected';
                   
                   return (
                     <tr key={app.id} className="hover:bg-muted/50 transition-colors">
-                      <td className="py-4 px-2 font-medium">{app.studentName}</td>
+                      <td className="py-4 px-2 font-medium truncate">{app.studentName}</td>
                       <td className="py-4 px-2">
-                        <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                        <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${
                           app.status.includes('Accepted') ? 'bg-green-100 text-green-700' : 
                           app.status.includes('Rejected') ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
                         }`}>
-                          {app.status}
+                          {formatStatusDisplay(app.status)}
                         </span>
                       </td>
                       <td className="py-4 px-2">
@@ -198,7 +196,7 @@ const CoordinatorDashboard = () => {
                               {app.history?.slice().reverse().map((log, i) => (
                                 <div key={i} className="p-3 border rounded-lg text-sm bg-muted/30">
                                   <div className="flex justify-between items-start mb-1">
-                                    <span className="font-bold text-primary">{log.status}</span>
+                                    <span className="font-bold text-primary">{formatStatusDisplay(log.status)}</span>
                                     <span className="text-[10px] text-muted-foreground">
                                       {new Date(log.changedAt).toLocaleString()}
                                     </span>
@@ -217,7 +215,7 @@ const CoordinatorDashboard = () => {
                             <Lock className="h-3 w-3 mr-1" /> Locked
                           </Button>
                         ) : (
-                          <Dialog onOpenChange={(open) => !open && setSelectedApp(null)}>
+                          <Dialog open={!!selectedApp && selectedApp.id === app.id} onOpenChange={(open) => !open && setSelectedApp(null)}>
                             <DialogTrigger asChild>
                               <Button size="sm" className="h-8" onClick={() => setSelectedApp(app)}>Update</Button>
                             </DialogTrigger>
@@ -228,16 +226,16 @@ const CoordinatorDashboard = () => {
                                 <Select onValueChange={(v) => setNewStatus(v as ApplicationStatus)}>
                                   <SelectTrigger><SelectValue placeholder="Select Status" /></SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value="Provisionally Accepted">Provisionally Accepted</SelectItem>
-                                    <SelectItem value="Provisionally Rejected">Provisionally Rejected</SelectItem>
-                                    <SelectItem value="Finally Accepted">Finally Accepted</SelectItem>
-                                    <SelectItem value="Finally Rejected">Finally Rejected</SelectItem>
+                                    <SelectItem value="Provisionally Accepted">Provisional Accept</SelectItem>
+                                    <SelectItem value="Provisionally Rejected">Provisional Reject</SelectItem>
+                                    <SelectItem value="Finally Accepted">Final Accept</SelectItem>
+                                    <SelectItem value="Finally Rejected">Final Reject</SelectItem>
                                   </SelectContent>
                                 </Select>
-                                <Label>Rationale</Label>
+                                <Label>Rationale (Optional)</Label>
                                 <Textarea value={rationale} onChange={(e) => setRationale(e.target.value)} />
                               </div>
-                              <Button className="w-full" onClick={handleStatusUpdate}>Confirm</Button>
+                              <Button className="w-full" disabled={!newStatus} onClick={handleStatusUpdate}>Confirm</Button>
                             </DialogContent>
                           </Dialog>
                         )}
