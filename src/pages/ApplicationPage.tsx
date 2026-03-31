@@ -7,10 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { toast } from 'sonner';
 import { ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { registerStudent } from '@/services/authService';
-// --- NEW IMPORTS ---
 import { db } from '@/services/firebase'; 
 import { collection, query, where, getDocs } from 'firebase/firestore';
-// -------------------
 
 const ApplicationPage = () => {
   const navigate = useNavigate();
@@ -26,20 +24,38 @@ const ApplicationPage = () => {
   const validate = () => {
     const e: Record<string, string> = {};
   
+    // Name Validation
     if (!fullName.trim()) e.fullName = 'Full name is required.';
     else if (!/^[A-Za-z\s]+$/.test(fullName)) e.fullName = 'Name must contain only alphabetical letters.';
     else if (!/^[A-Za-z]+(?:\s+[A-Za-z]+)+$/.test(fullName.trim())) e.fullName = 'Enter both first and last name.';
 
+    // Student ID Validation
     if (!studentId?.trim()) e.studentId = 'Student ID is required.';
     else if (!/^\d+$/.test(studentId)) e.studentId = 'Student ID must contain only numerical values.';
     else if (studentId.length !== 8) e.studentId = 'Student ID must be exactly 8 digits long.';
 
-    if (!studentEmail.trim()) e.studentEmail = 'Email is required.';
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(studentEmail)) e.studentEmail = 'Invalid email format.';
-    else if (!/^[a-zA-Z0-9._%+-]+@torontomu\.ca$/.test(studentEmail)) e.studentEmail = 'Must be a valid @torontomu.ca email.';
+    // Email Validation (Detailed messages to replace browser pop-ups)
+    if (!studentEmail.trim()) {
+      e.studentEmail = 'Email is required.';
+    } else if (!studentEmail.includes('@')) {
+      e.studentEmail = `Please include an '@' in the email address. '${studentEmail}' is missing an '@'.`;
+    } else if (studentEmail.startsWith('@')) {
+      e.studentEmail = `Please include a part followed by '@'. '${studentEmail}' is incomplete.`;
+    } else if (!studentEmail.endsWith('@torontomu.ca')) {
+      e.studentEmail = 'Must be a valid @torontomu.ca email.';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(studentEmail)) {
+      e.studentEmail = 'Invalid email format.';
+    }
     
-    if (!password) e.password = 'Password is required.';
-    else if (password.length < 6) e.password = 'Password must be at least 6 characters.';
+    // Secure Password Validation
+    // Logic: 8+ chars, 1 upper, 1 lower, 1 number, 1 symbol
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])[A-Za-z\d@$!%*?&#]{8,}$/;
+    
+    if (!password) {
+      e.password = 'Password is required.';
+    } else if (!passwordRegex.test(password)) {
+      e.password = 'Password must be 8+ characters with at least one uppercase, one lowercase, one number, and one symbol.';
+    }
     
     if (password !== confirmPassword) e.confirmPassword = 'Passwords do not match.';
 
@@ -54,24 +70,16 @@ const ApplicationPage = () => {
     setLoading(true);
     
     try {
-      // --- NEW DUPLICATE CHECK LOGIC ---
       const q = query(collection(db, 'users'), where('studentId', '==', studentId));
       const querySnapshot = await getDocs(q);
 
       if (!querySnapshot.empty) {
         setErrors(prev => ({ ...prev, studentId: 'This Student ID is already registered.' }));
         setLoading(false);
-        return; // Stop execution here
+        return; 
       }
-      // --------------------------------
 
-      // Proceed with Registration
-      const result = await registerStudent(
-        fullName,
-        studentId,
-        studentEmail,
-        password
-      );
+      const result = await registerStudent(fullName, studentId, studentEmail, password);
       
       if (result.success) {
         setSubmitted(true);
@@ -119,7 +127,8 @@ const ApplicationPage = () => {
           <CardDescription>Create your account and submit your application</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Added noValidate to stop the browser pop-ups */}
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
             <div className="space-y-2">
               <Label htmlFor="fullName">Full Name</Label>
               <Input 

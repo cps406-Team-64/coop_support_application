@@ -19,13 +19,35 @@ const LoginPage = ({ role }: LoginPageProps) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const validate = () => {
+    const e: Record<string, string> = {};
+
+    // Email Validation (Matches ApplicationPage logic)
+    if (!email.trim()) {
+      e.email = 'Email is required.';
+    } else if (!email.includes('@')) {
+      e.email = `Please include an '@' in the email address. '${email}' is missing an '@'.`;
+    } else if (email.startsWith('@')) {
+      e.email = `Please include a part followed by '@'. '${email}' is incomplete.`;
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      e.email = 'Invalid email format.';
+    }
+
+    if (!password) {
+      e.password = 'Password is required.';
+    }
+
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
-      toast.error('Please fill in all fields');
-      return;
-    }
+    setErrors({}); // Clear previous errors
+    
+    if (!validate()) return;
     
     setLoading(true);
     const result = await loginUser(email, password);
@@ -43,7 +65,12 @@ const LoginPage = ({ role }: LoginPageProps) => {
       toast.success(`Welcome, ${user.fullName || user.name || 'User'}!`);
       navigate(`/dashboard/${role}`);
     } else {
-      toast.error(result.error || 'Login failed');
+      // Check if error is credential-related
+      if (result.error?.includes('invalid-credential') || result.error?.includes('auth/user-not-found') || result.error?.includes('auth/wrong-password')) {
+        setErrors({ password: 'Incorrect email or password.' });
+      } else {
+        toast.error(result.error || 'Login failed');
+      }
     }
   };
 
@@ -64,14 +91,29 @@ const LoginPage = ({ role }: LoginPageProps) => {
           <CardDescription>Enter your credentials to continue</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
+          {/* noValidate prevents the default browser pop-up */}
+          <form onSubmit={handleLogin} className="space-y-4" noValidate>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <Input 
+                id="email" 
+                type="email" 
+                value={email} 
+                onChange={(e) => setEmail(e.target.value)} 
+                className={errors.email ? "border-destructive" : ""}
+              />
+              {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+              <Input 
+                id="password" 
+                type="password" 
+                value={password} 
+                onChange={(e) => setPassword(e.target.value)} 
+                className={errors.password ? "border-destructive" : ""}
+              />
+              {errors.password && <p className="text-xs text-destructive">{errors.password}</p>}
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? 'Signing in...' : 'Sign In'}
