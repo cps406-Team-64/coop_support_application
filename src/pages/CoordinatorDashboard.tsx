@@ -1,149 +1,253 @@
-import { useState, useEffect } from 'react';
-import { useAppStore, type ApplicationStatus, type Application } from '@/lib/store';
+import { useState, useEffect, useMemo } from 'react';
+import { useAppStore, type ApplicationStatus, type Application, type StatusHistory, type Report } from '@/lib/store';
 import { db } from '../services/firebase';
-import { collection, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-
-const statusColors: Record<string, string> = {
-  'Applied': 'bg-blue-100 text-blue-700',
-  'Provisionally Accepted': 'bg-green-100 text-green-700',
-  'Finally Accepted': 'bg-green-200 text-green-800',
-  'Provisionally Rejected': 'bg-red-100 text-red-700',
-  'Flagged for Review': 'bg-yellow-100 text-yellow-700',
-};
-
-const allStatuses: ApplicationStatus[] = [
-  'No Application', 'Applied', 'Provisionally Accepted', 'Provisionally Rejected',
-  'Finally Accepted', 'Finally Rejected', 'Placement Rejected', 'Dismissed',
-];
+import { History, Lock, Search, Filter, FileCheck } from 'lucide-react';
 
 const CoordinatorDashboard = () => {
-  const { applications, currentUser, updateApplicationStatus, setApplications, addNotification } = useAppStore();
+  const { applications, reports, currentUser, setApplications, setReports, addNotification } = useAppStore();
+  
   const [filter, setFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
   const [newStatus, setNewStatus] = useState<ApplicationStatus | ''>('');
-  
+  const [rationale, setRationale] = useState('');
+
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, 'applications'), (snapshot) => {
-      const appsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        history: [],
-        ...doc.data()
-      })) as Application[];
+    // Sync Applications
+    const unsubApps = onSnapshot(collection(db, 'applications'), (snapshot) => {
+      const appsData = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return { 
+          id: doc.id, 
+          ...data,
+          // Fallback check: ensures studentId is present even if stored as userId in Firestore
+          studentId: data.studentId || data.userId || '' 
+        };
+      }) as Application[];
       setApplications(appsData);
     });
-    return () => unsubscribe();
-  }, [setApplications]);
 
-  const filtered = (applications || []).filter(a => {
-    if (filter !== 'all' && a.status !== filter) return false;
-    if (search && !a.studentName?.toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
-  });
+    // Sync Reports
+    const unsubReports = onSnapshot(collection(db, 'reports'), (snapshot) => {
+      const reportsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Report[];
+      setReports(reportsData);
+    });
+
+    return () => { unsubApps(); unsubReports(); };
+  }, [setApplications, setReports]);
+
+  // Filtering Logic
+  const filteredApplications = useMemo(() => {
+    return applications.filter(app => {
+      const matchesSearch = app.studentName.toLowerCase().includes(search.toLowerCase());
+      if (!matchesSearch) return false;
+
+      // Logic for checking if a report exists for this specific student
+      const hasSubmittedReport = reports.some(r => r.studentId === app.studentId || r.studentId === app.userId);
+
+      switch (filter) {
+        case 'provisionally-accepted': return app.status === 'Provisionally Accepted';
+        case 'provisionally-rejected': return app.status === 'Provisionally Rejected';
+        case 'finally-accepted': return app.status === 'Finally Accepted';
+        case 'finally-rejected': return app.status === 'Finally Rejected';
+        case 'accepted-with-reports': 
+          return app.status === 'Finally Accepted' && hasSubmittedReport;
+        default: return true;
+      }
+    });
+  }, [applications, reports, filter, search]);
+
+  const validateTransition = (current: ApplicationStatus, next: ApplicationStatus): string | null => {
+    if (current === 'Finally Accepted' || current === 'Finally Rejected') return "Final decisions are locked.";
+    if (next === 'Finally Accepted' && current !== 'Provisionally Accepted') return "Must be 'Provisionally Accepted' first.";
+    if (next === 'Finally Rejected' && current !== 'Provisionally Rejected') return "Must be 'Provisionally Rejected' first.";
+    return null;
+  };
 
   const handleStatusUpdate = async () => {
-    if (!selectedApp || !newStatus) return;
+    if (!selectedApp || !newStatus || !rationale) return toast.error("Status and Rationale are required");
+
+    const error = validateTransition(selectedApp.status, newStatus as ApplicationStatus);
+    if (error) return toast.error(error);
+
+    const historyEntry: StatusHistory = {
+      status: newStatus as ApplicationStatus,
+      changedAt: new Date().toISOString(),
+      changedBy: currentUser?.email || 'Coordinator',
+      rationale: rationale
+    };
 
     try {
-      // 1. Update Firebase
       const appRef = doc(db, 'applications', selectedApp.id);
-      await updateDoc(appRef, { status: newStatus });
+      await updateDoc(appRef, { 
+        status: newStatus,
+        history: arrayUnion(historyEntry)
+      });
 
-      // 2. Update Local Store
-      updateApplicationStatus(selectedApp.id, newStatus as ApplicationStatus, currentUser?.id || 'Admin');
-
-      // 3. Create Notification for Student
       addNotification({
         userId: selectedApp.userId,
         title: 'Application Update',
-        message: `Your application status has been changed to ${newStatus}.`,
-        type: 'info'
+        message: `Status changed to ${newStatus}.`,
+        type: 'success'
       });
 
-      toast.success('Status updated successfully');
+      toast.success('Status updated');
       setSelectedApp(null);
       setNewStatus('');
+      setRationale('');
     } catch (error) {
-      toast.error('Failed to update status');
+      toast.error('Update failed');
     }
   };
 
   return (
-    <div className="p-8 animate-fade-in">
-      <div className="mb-8">
+    <div className="p-8 space-y-6">
+      <header>
         <h1 className="text-3xl font-bold">Coordinator Dashboard</h1>
-        <p className="text-muted-foreground">Logged in as: {currentUser?.email}</p>
-      </div>
+        <p className="text-muted-foreground">Manage student applications and audit history</p>
+      </header>
 
-      <div className="mb-8 grid gap-4 sm:grid-cols-3">
-        <Card><CardContent className="pt-6">
-          <p className="text-2xl font-bold">{applications.length}</p>
-          <p className="text-sm text-muted-foreground">Total Applications</p>
-        </CardContent></Card>
-      </div>
-
-      <div className="mb-6 flex gap-3">
+      {/* Filters (Left) and Search (Right) */}
+      <div className="flex flex-col md:flex-row gap-4">
         <Select value={filter} onValueChange={setFilter}>
-          <SelectTrigger className="w-[200px]"><SelectValue placeholder="Filter" /></SelectTrigger>
+          <SelectTrigger className="w-full md:w-[280px]">
+            <Filter className="h-4 w-4 mr-2" />
+            <SelectValue placeholder="Filter by status" />
+          </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            {allStatuses.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+            <SelectItem value="all">All Applicants</SelectItem>
+            <SelectItem value="provisionally-accepted">Provisionally Accepted</SelectItem>
+            <SelectItem value="provisionally-rejected">Provisionally Rejected</SelectItem>
+            <SelectItem value="finally-accepted">Finally Accepted</SelectItem>
+            <SelectItem value="finally-rejected">Finally Rejected</SelectItem>
+            <SelectItem value="accepted-with-reports">Accepted w/ Submitted Report</SelectItem>
           </SelectContent>
         </Select>
-        <Input placeholder="Search students..." className="w-[300px]" value={search} onChange={(e) => setSearch(e.target.value)} />
+
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+          <Input 
+            placeholder="Search students..." 
+            className="pl-10" 
+            value={search} 
+            onChange={(e) => setSearch(e.target.value)} 
+          />
+        </div>
       </div>
 
       <Card>
         <CardContent className="pt-6">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="border-b text-muted-foreground">
-                <th className="pb-3">Student</th>
-                <th className="pb-3">Status</th>
-                <th className="pb-3">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((app) => (
-                <tr key={app.id} className="border-b">
-                  <td className="py-4">{app.studentName}</td>
-                  <td className="py-4">
-                    <span className={`px-2 py-1 rounded text-xs ${statusColors[app.status] || 'bg-gray-100 text-gray-700'}`}>
-                      {app.status}
-                    </span>
-                  </td>
-                  <td className="py-4">
-                    <Dialog onOpenChange={(open) => !open && setSelectedApp(null)}>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" size="sm" onClick={() => setSelectedApp(app)}>Update</Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader><DialogTitle>Update Status for {selectedApp?.studentName}</DialogTitle></DialogHeader>
-                        <div className="space-y-4 py-4">
-                          <Label>Select New Status</Label>
-                          <Select value={newStatus} onValueChange={(v) => setNewStatus(v as ApplicationStatus)}>
-                            <SelectTrigger><SelectValue placeholder="New Status" /></SelectTrigger>
-                            <SelectContent>
-                              {allStatuses.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <Button className="w-full" onClick={handleStatusUpdate}>Save Changes</Button>
-                      </DialogContent>
-                    </Dialog>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="text-left border-b text-sm font-medium text-muted-foreground">
+                  <th className="pb-4 px-2">Student</th>
+                  <th className="pb-4 px-2">Status</th>
+                  <th className="pb-4 px-2">Report</th>
+                  <th className="pb-4 px-2">Audit</th>
+                  <th className="pb-4 px-2 text-right">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {filtered.length === 0 && <p className="py-10 text-center text-muted-foreground">No records found.</p>}
+              </thead>
+              <tbody className="divide-y">
+                {filteredApplications.map((app) => {
+                  // Fixed logic: Checking both studentId and userId for report tracking
+                  const hasReport = reports.some(r => r.studentId === app.studentId || r.studentId === app.userId);
+                  const isLocked = app.status === 'Finally Accepted' || app.status === 'Finally Rejected';
+                  
+                  return (
+                    <tr key={app.id} className="hover:bg-muted/50 transition-colors">
+                      <td className="py-4 px-2 font-medium">{app.studentName}</td>
+                      <td className="py-4 px-2">
+                        <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                          app.status.includes('Accepted') ? 'bg-green-100 text-green-700' : 
+                          app.status.includes('Rejected') ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
+                        }`}>
+                          {app.status}
+                        </span>
+                      </td>
+                      <td className="py-4 px-2">
+                        {hasReport ? (
+                          <div className="flex items-center text-green-600 text-xs">
+                            <FileCheck className="h-3 w-3 mr-1" /> Submitted
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-xs font-medium">Pending</span>
+                        )}
+                      </td>
+                      <td className="py-4 px-2">
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 text-xs font-normal">
+                              <History className="h-3.5 w-3.5 mr-1.5"/> Logs
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-xl">
+                            <DialogHeader>
+                              <DialogTitle>Audit Trail: {app.studentName}</DialogTitle>
+                            </DialogHeader>
+                            <div className="space-y-3 mt-4 max-h-[60vh] overflow-y-auto pr-2">
+                              {app.history?.slice().reverse().map((log, i) => (
+                                <div key={i} className="p-3 border rounded-lg text-sm bg-muted/30">
+                                  <div className="flex justify-between items-start mb-1">
+                                    <span className="font-bold text-primary">{log.status}</span>
+                                    <span className="text-[10px] text-muted-foreground">
+                                      {new Date(log.changedAt).toLocaleString()}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs italic text-muted-foreground mb-2">"{log.rationale}"</p>
+                                  <p className="text-[10px] font-medium uppercase text-muted-foreground">Changed By: {log.changedBy}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      </td>
+                      <td className="py-4 px-2 text-right">
+                        {isLocked ? (
+                          <Button disabled variant="secondary" size="sm" className="h-8">
+                            <Lock className="h-3 w-3 mr-1" /> Locked
+                          </Button>
+                        ) : (
+                          <Dialog onOpenChange={(open) => !open && setSelectedApp(null)}>
+                            <DialogTrigger asChild>
+                              <Button size="sm" className="h-8" onClick={() => setSelectedApp(app)}>Update</Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader><DialogTitle>Update Status</DialogTitle></DialogHeader>
+                              <div className="space-y-4 py-4">
+                                <Label>New Status</Label>
+                                <Select onValueChange={(v) => setNewStatus(v as ApplicationStatus)}>
+                                  <SelectTrigger><SelectValue placeholder="Select Status" /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="Provisionally Accepted">Provisionally Accepted</SelectItem>
+                                    <SelectItem value="Provisionally Rejected">Provisionally Rejected</SelectItem>
+                                    <SelectItem value="Finally Accepted">Finally Accepted</SelectItem>
+                                    <SelectItem value="Finally Rejected">Finally Rejected</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <Label>Rationale</Label>
+                                <Textarea value={rationale} onChange={(e) => setRationale(e.target.value)} />
+                              </div>
+                              <Button className="w-full" onClick={handleStatusUpdate}>Confirm</Button>
+                            </DialogContent>
+                          </Dialog>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </CardContent>
       </Card>
     </div>

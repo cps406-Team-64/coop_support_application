@@ -6,7 +6,11 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { ArrowLeft, CheckCircle2 } from 'lucide-react';
-import { registerStudent } from '@/services/authService'; // Import the service
+import { registerStudent } from '@/services/authService';
+// --- NEW IMPORTS ---
+import { db } from '@/services/firebase'; 
+import { collection, query, where, getDocs } from 'firebase/firestore';
+// -------------------
 
 const ApplicationPage = () => {
   const navigate = useNavigate();
@@ -15,8 +19,8 @@ const ApplicationPage = () => {
   const [fullName, setFullName] = useState('');
   const [studentId, setStudentId] = useState('');
   const [studentEmail, setStudentEmail] = useState('');
-  const [password, setPassword] = useState(''); // Add password field
-  const [confirmPassword, setConfirmPassword] = useState(''); // Add confirm password
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const validate = () => {
@@ -34,7 +38,6 @@ const ApplicationPage = () => {
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(studentEmail)) e.studentEmail = 'Invalid email format.';
     else if (!/^[a-zA-Z0-9._%+-]+@torontomu\.ca$/.test(studentEmail)) e.studentEmail = 'Must be a valid @torontomu.ca email.';
     
-    // Password validation
     if (!password) e.password = 'Password is required.';
     else if (password.length < 6) e.password = 'Password must be at least 6 characters.';
     
@@ -50,21 +53,36 @@ const ApplicationPage = () => {
     
     setLoading(true);
     
-    // Register with Firebase
-    const result = await registerStudent(
-      fullName,
-      studentId,
-      studentEmail,
-      password
-    );
-    
-    setLoading(false);
-    
-    if (result.success) {
-      setSubmitted(true);
-      toast.success('Application submitted successfully!');
-    } else {
-      toast.error(result.error || 'Failed to submit application');
+    try {
+      // --- NEW DUPLICATE CHECK LOGIC ---
+      const q = query(collection(db, 'users'), where('studentId', '==', studentId));
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        setErrors(prev => ({ ...prev, studentId: 'This Student ID is already registered.' }));
+        setLoading(false);
+        return; // Stop execution here
+      }
+      // --------------------------------
+
+      // Proceed with Registration
+      const result = await registerStudent(
+        fullName,
+        studentId,
+        studentEmail,
+        password
+      );
+      
+      if (result.success) {
+        setSubmitted(true);
+        toast.success('Application submitted successfully!');
+      } else {
+        toast.error(result.error || 'Failed to submit application');
+      }
+    } catch (err) {
+      toast.error('An error occurred during validation');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -106,7 +124,7 @@ const ApplicationPage = () => {
               <Label htmlFor="fullName">Full Name</Label>
               <Input 
                 id="fullName" 
-                placeholder="Alice Johnson" 
+                placeholder="Full Name" 
                 value={fullName} 
                 onChange={(e) => setFullName(e.target.value)} 
               />
@@ -117,7 +135,7 @@ const ApplicationPage = () => {
               <Label htmlFor="studentId">Student ID</Label>
               <Input 
                 id="studentId" 
-                placeholder="501234567" 
+                placeholder="12345678" 
                 value={studentId} 
                 onChange={(e) => setStudentId(e.target.value)} 
               />
@@ -129,7 +147,7 @@ const ApplicationPage = () => {
               <Input 
                 id="studentEmail" 
                 type="email" 
-                placeholder="you@torontomu.ca" 
+                placeholder="username@torontomu.ca" 
                 value={studentEmail} 
                 onChange={(e) => setStudentEmail(e.target.value)} 
               />
