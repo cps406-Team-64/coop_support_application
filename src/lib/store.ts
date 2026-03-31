@@ -51,12 +51,19 @@ export interface Placement {
   status: 'Active' | 'Completed' | 'Dismissed';
 }
 
+export interface StatusHistory {
+  status: ApplicationStatus;
+  changedAt: string;
+  changedBy: string;
+  rationale: string;
+}
+
 export interface Application {
   id: string;
   studentId: string;
   studentName: string;
   status: ApplicationStatus;
-  history: any[];
+  history: StatusHistory[];
   userId: string;
 }
 
@@ -89,7 +96,7 @@ interface AppState {
   addReport: (report: Omit<Report, 'id'>) => void;
   addEvaluation: (evaluation: Omit<Evaluation, 'id'>) => void;
   addNotification: (notification: Omit<Notification, 'id' | 'createdAt' | 'read'>) => void;
-  updateApplicationStatus: (appId: string, status: ApplicationStatus, coordId: string) => void;
+  updateApplicationStatus: (appId: string, status: ApplicationStatus, coordId: string, rationale: string) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -129,8 +136,11 @@ export const useAppStore = create<AppState>()(
         ]
       })),
 
-      updateApplicationStatus: (appId, status) => set((state) => ({
-        applications: state.applications.map(a => a.id === appId ? { ...a, status } : a)
+      updateApplicationStatus: (appId, status, coordId, rationale) => set((state) => ({
+              applications: state.applications.map(a => 
+                a.id === appId ? { ...a, status, history: [ ...a.history, 
+                        { status, changedAt: new Date().toISOString(), changedBy: coordId, rationale } ] 
+                  } : a ) 
       })),
     }),
     { name: 'app-storage' }
