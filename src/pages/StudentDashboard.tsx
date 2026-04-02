@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { toast } from 'sonner';
 import { Upload, Clock, CheckCircle2 } from 'lucide-react';
 
-const DEADLINE = new Date('2026-04-01T23:59:59Z');
+const DEADLINE = new Date('2026-04-05T23:59:59Z');
 
 const StudentDashboard = () => {
   const { currentUser, applications = [], reports = [], setApplications, setReports } = useAppStore();
